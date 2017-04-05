@@ -89,7 +89,7 @@ public abstract class BaseOutputWriter implements OutputWriter, OutputWriterFact
 			@JsonProperty("settings") Map<String, Object> settings) {
 
 		if (settings != null && !settings.isEmpty()) {
-			logger.warn("Using 'settings' is deprecated, please pass attributes directly to the OutputWriter.");
+			logger.debug("Using 'settings' is deprecated, please pass attributes directly to the OutputWriter.");
 		}
 
 		// resolve and initialize settings first, so we can refer to them to initialize other fields
