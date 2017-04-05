@@ -35,9 +35,9 @@ import com.googlecode.jmxtrans.model.Server;
 import com.googlecode.jmxtrans.model.ValidationException;
 import com.googlecode.jmxtrans.model.output.BaseOutputWriter;
 import com.googlecode.jmxtrans.model.output.Settings;
-import kafka.javaapi.producer.Producer;
-import kafka.producer.KeyedMessage;
-import kafka.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -93,9 +93,11 @@ public class KafkaWriter extends BaseOutputWriter {
 		// Setting all the required Kafka Properties
 		Properties kafkaProperties =  new Properties();
 		kafkaProperties.setProperty("metadata.broker.list", Settings.getStringSetting(settings, "metadata.broker.list", null));
-		kafkaProperties.setProperty("zk.connect", Settings.getStringSetting(settings, "zk.connect", null));
-		kafkaProperties.setProperty("serializer.class", Settings.getStringSetting(settings, "serializer.class", null));
-		this.producer= new Producer<>(new ProducerConfig(kafkaProperties));
+		kafkaProperties.setProperty("bootstrap.servers", Settings.getStringSetting(settings, "bootstrap.servers", null));
+		kafkaProperties.setProperty("key.serializer", Settings.getStringSetting(settings, "key.serializer", null));
+		kafkaProperties.setProperty("value.serializer", Settings.getStringSetting(settings, "value.serializer", null));
+
+		this.producer = new KafkaProducer<>(kafkaProperties);
 		this.topics = asList(Settings.getStringSetting(settings, "topics", "").split(","));
 		this.tags = ImmutableMap.copyOf(firstNonNull(tags, (Map<String, String>) getSettings().get("tags"), ImmutableMap.<String, String>of()));
 		jsonFactory = new JsonFactory();
@@ -114,10 +116,24 @@ public class KafkaWriter extends BaseOutputWriter {
 			for (Entry<String, Object> values : resultValues.entrySet()) {
 				Object value = values.getValue();
 				if (isNumeric(value)) {
-					String message = createJsonMessage(server, query, typeNames, result, values, value);
+					//String message = createJsonMessage(server, query, typeNames, result, values, value);
+					String mbeanKey = "";
+					if (values.getKey().startsWith(result.getAttributeName())) {
+						mbeanKey = values.getKey();
+					} else {
+						mbeanKey = result.getAttributeName() + "." + values.getKey();
+					}
+					String message = "put " + server.getAlias();
+					if(result.getKeyAlias() != null){
+						message+=result.getKeyAlias() + ".";
+					}
+					message +=  mbeanKey + " " + String.valueOf(result.getEpoch() / 1000) + " " + value.toString();
+					for (Entry<String, String> tag : this.tags.entrySet()) {
+						message += " " + tag.getKey() + "=" + tag.getValue();
+					}
 					for(String topic : this.topics) {
-						log.debug("Topic: [{}] ; Kafka Message: [{}]", topic, message);
-						producer.send(new KeyedMessage<String, String>(topic, message));
+						log.debug("Topic: [{}] ; message: [{}]; ", topic, message);
+						producer.send(new ProducerRecord<String, String>(topic, message));
 					}
 				} else {
 					log.warn("Unable to submit non-numeric value to Kafka: [{}] from result [{}]", value, result);
