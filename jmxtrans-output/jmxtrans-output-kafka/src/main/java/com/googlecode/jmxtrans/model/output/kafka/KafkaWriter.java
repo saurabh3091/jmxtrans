@@ -33,6 +33,7 @@ import com.googlecode.jmxtrans.model.Query;
 import com.googlecode.jmxtrans.model.Result;
 import com.googlecode.jmxtrans.model.Server;
 import com.googlecode.jmxtrans.model.ValidationException;
+import com.googlecode.jmxtrans.model.naming.StringUtils;
 import com.googlecode.jmxtrans.model.output.BaseOutputWriter;
 import com.googlecode.jmxtrans.model.output.Settings;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -126,6 +127,13 @@ public class KafkaWriter extends BaseOutputWriter {
 					String message = "put " + server.getAlias();
 					if(result.getKeyAlias() != null){
 						message+=result.getKeyAlias() + ".";
+					}else {
+						message+= StringUtils.cleanupStr(result.getObjDomain(), query.isAllowDottedKeys()) + ".";
+						String typeName = StringUtils.cleanupStr(query.makeTypeNameValueString(typeNames, result.getTypeName()), query.isAllowDottedKeys());
+						if (typeName != null && typeName.length() > 0) {
+							message+= typeName;
+							message+=".";
+						}
 					}
 					message +=  mbeanKey + " " + String.valueOf(result.getEpoch() / 1000) + " " + value.toString();
 					for (Entry<String, String> tag : this.tags.entrySet()) {
